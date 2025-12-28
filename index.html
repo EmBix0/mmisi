@@ -350,14 +350,57 @@ function initCheckboxes() {
     });
 }
 
-// Beim Laden der Seite alles wiederherstellen
+const SHEET_URL = 'https://api.sheetbest.com/sheets/2df9e650-e493-4a91-8198-01c5f534da4e'; // Hier deine URL einfügen
+
+// Funktion: Daten aus der Cloud laden
+async function loadFromCloud() {
+    const status = document.getElementById('syncStatus');
+    try {
+        // Wir holen die Daten. Sheet.best gibt ein Array aller Zeilen zurück.
+        const response = await fetch(SHEET_URL);
+        const data = await response.json();
+
+        if (data.length > 0) {
+            // Wir nehmen die aktuellste Zeile (die letzte im Sheet)
+            const lastEntry = data[data.length - 1];
+
+            // 1. Budget-Felder befüllen
+            const categories = ['car', 'flights', 'stay', 'food', 'tours'];
+            categories.forEach(cat => {
+                if (lastEntry[cat]) {
+                    document.getElementById(cat).value = lastEntry[cat];
+                }
+            });
+
+            // 2. Checkboxen befüllen
+            const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+            checkboxes.forEach((cb, index) => {
+                const key = 'todo_' + index;
+                if (lastEntry[key]) {
+                    cb.checked = (lastEntry[key] === "JA");
+                    cb.parentElement.classList.toggle('done', cb.checked);
+                }
+            });
+
+            // 3. Gesamtsumme neu berechnen
+            calcBudget();
+            status.innerText = "☁️ Stand aus der Cloud geladen (" + lastEntry.timestamp + ")";
+        }
+    } catch (error) {
+        console.error("Laden fehlgeschlagen:", error);
+        status.innerText = "⚠️ Konnte Cloud-Daten nicht laden. Nutze lokalen Speicher.";
+    }
+}
+
+// Angepasster Start-Vorgang
 window.onload = function() {
-    // 1. Budget-Werte laden
-    const categories = ['car', 'flights', 'stay', 'food', 'tours'];
-    categories.forEach(id => {
-        const savedValue = localStorage.getItem('budget-' + id);
-        if (savedValue !== null) {
-            document.getElementById(id).value = savedValue;
+    // Zuerst lokal laden (geht schnell)
+    initCheckboxes(); 
+    calcBudget();
+
+    // Dann versuchen, die frischen Daten aus der Cloud zu holen
+    loadFromCloud();
+};
         }
     });
 
