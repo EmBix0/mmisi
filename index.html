@@ -163,104 +163,120 @@
 
 <script>
     // --- KONFIGURATION ---
-    const SHEET_URL = 'https://api.sheetbest.com/sheets/2df9e650-e493-4a91-8198-01c5f534da4e';
+const SHEET_URL = 'https://api.sheetbest.com/sheets/2df9e650-e493-4a91-8198-01c5f534da4e';
 
-    // 1. BUDGET BERECHNEN
-    function calcBudget() {
-        const ids = ['car', 'flights', 'stay', 'food', 'tours'];
-        let total = 0;
-        ids.forEach(id => {
-            const val = parseFloat(document.getElementById(id).value) || 0;
-            total += val;
-            localStorage.setItem('budget-' + id, val); // Lokal im Browser merken
-        });
-        document.getElementById('totalPrice').innerText = total.toLocaleString('de-DE');
-    }
+// 1. BUDGET BERECHNEN & SOFORT LOKAL SPEICHERN
+function calcBudget() {
+    const ids = ['car', 'flights', 'stay', 'food', 'tours'];
+    let total = 0;
+    
+    ids.forEach(id => {
+        const input = document.getElementById(id);
+        const val = parseFloat(input.value) || 0;
+        total += val;
+        // Speichert JEDEN Tastendruck sofort auf deinem Gerät
+        localStorage.setItem('island-budget-' + id, val); 
+    });
+    
+    document.getElementById('totalPrice').innerText = total.toLocaleString('de-DE');
+}
 
-    // 2. CHECKBOXEN INITIALISIEREN
-    function initCheckboxes() {
-        const checkboxes = document.querySelectorAll('input[type="checkbox"]');
-        checkboxes.forEach((cb, index) => {
-            // Stand aus Browser laden
-            const saved = localStorage.getItem('todo-' + index);
-            if (saved === 'true') { cb.checked = true; cb.parentElement.classList.add('done'); }
-            
-            // Bei Klick speichern & durchstreichen
-            cb.addEventListener('change', function() {
-                localStorage.setItem('todo-' + index, this.checked);
-                this.parentElement.classList.toggle('done', this.checked);
-            });
-        });
-    }
-
-    // 3. DATEN ZUM GOOGLE SHEET SENDEN
-    async function syncToCloud() {
-        const btn = document.getElementById('syncBtn');
-        const status = document.getElementById('syncStatus');
-        btn.innerText = "Speichere Saga...";
-        
-        // Alle Daten in ein Objekt packen
-        const dataObj = {
-            car: document.getElementById('car').value,
-            flights: document.getElementById('flights').value,
-            stay: document.getElementById('stay').value,
-            food: document.getElementById('food').value,
-            tours: document.getElementById('tours').value,
-            timestamp: new Date().toLocaleString()
-        };
-
-        // Status jeder Checkbox hinzufügen
-        document.querySelectorAll('input[type="checkbox"]').forEach((cb, i) => {
-            dataObj['todo_' + i] = cb.checked ? "JA" : "NEIN";
-        });
-
-        try {
-            const response = await fetch(SHEET_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify([dataObj]),
-            });
-            if (response.ok) {
-                status.innerText = "✅ In Walhall gesichert (Google Sheet)!";
-                btn.innerText = "⚡ In Cloud speichern";
-            }
-        } catch (e) {
-            status.innerText = "❌ Fehler bei der Übertragung.";
-            btn.innerText = "Erneut versuchen";
+// 2. CHECKBOXEN INITIALISIEREN & LOKAL SPEICHERN
+function initCheckboxes() {
+    const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+    checkboxes.forEach((cb, index) => {
+        // Lokalen Stand laden
+        const saved = localStorage.getItem('island-todo-' + index);
+        if (saved === 'true') {
+            cb.checked = true;
+            cb.parentElement.classList.add('done');
         }
-    }
+        
+        cb.addEventListener('change', function() {
+            localStorage.setItem('island-todo-' + index, this.checked);
+            this.parentElement.classList.toggle('done', this.checked);
+        });
+    });
+}
 
-    // 4. DATEN AUS DER CLOUD LADEN (beim Öffnen)
-    async function loadFromCloud() {
-        try {
-            const response = await fetch(SHEET_URL);
-            const data = await response.json();
-            if (data && data.length > 0) {
-                const last = data[data.length - 1]; // Letzte Zeile nehmen
-                
-                // Budget-Zahlen setzen
-                ['car', 'flights', 'stay', 'food', 'tours'].forEach(id => {
-                    if(last[id]) document.getElementById(id).value = last[id];
-                });
-
-                // Checkboxen setzen
-                document.querySelectorAll('input[type="checkbox"]').forEach((cb, i) => {
-                    if(last['todo_'+i]) {
-                        cb.checked = last['todo_'+i] === "JA";
-                        cb.parentElement.classList.toggle('done', cb.checked);
-                    }
-                });
-                calcBudget(); // Summe neu berechnen
-            }
-        } catch (e) { console.log("Cloud-Laden übersprungen."); }
-    }
-
-    // --- START-SEQUENZ ---
-    window.onload = () => {
-        initCheckboxes();
-        calcBudget();
-        loadFromCloud(); // Versuchen, Cloud-Daten zu holen
+// 3. IN DIE CLOUD SENDEN (Nur wenn du aktiv klickst)
+async function syncToCloud() {
+    const btn = document.getElementById('syncBtn');
+    const status = document.getElementById('syncStatus');
+    btn.innerText = "Sende zur Cloud...";
+    
+    const dataObj = {
+        car: document.getElementById('car').value,
+        flights: document.getElementById('flights').value,
+        stay: document.getElementById('stay').value,
+        food: document.getElementById('food').value,
+        tours: document.getElementById('tours').value,
+        timestamp: new Date().toLocaleString()
     };
+
+    document.querySelectorAll('input[type="checkbox"]').forEach((cb, i) => {
+        dataObj['todo_' + i] = cb.checked ? "JA" : "NEIN";
+    });
+
+    try {
+        await fetch(SHEET_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify([dataObj]),
+        });
+        status.innerText = "✅ Erfolgreich für Partnerin freigegeben!";
+        btn.innerText = "⚡ In Cloud speichern";
+    } catch (e) {
+        status.innerText = "❌ Fehler beim Senden.";
+    }
+}
+
+// 4. DATEN AUS DER CLOUD LADEN (Nur bei Klick oder Bedarf)
+// Wir lassen diese Funktion weg vom automatischen Start, 
+// damit sie deine lokalen Daten nicht überschreibt!
+async function loadFromCloudManual() {
+    if(!confirm("Möchtest du den Stand aus der Cloud laden? Deine aktuellen lokalen Änderungen werden überschrieben.")) return;
+    
+    const status = document.getElementById('syncStatus');
+    status.innerText = "Lade Daten...";
+    
+    try {
+        const response = await fetch(SHEET_URL);
+        const data = await response.json();
+        if (data && data.length > 0) {
+            const last = data[data.length - 1];
+            
+            // Werte ins UI und in den LocalStorage schreiben
+            ['car', 'flights', 'stay', 'food', 'tours'].forEach(id => {
+                if(last[id]) {
+                    document.getElementById(id).value = last[id];
+                    localStorage.setItem('island-budget-' + id, last[id]);
+                }
+            });
+            
+            calcBudget();
+            status.innerText = "☁️ Daten erfolgreich importiert!";
+        }
+    } catch (e) { status.innerText = "❌ Fehler beim Laden."; }
+}
+
+// --- DER START: NUR LOCALSTORAGE ---
+window.onload = () => {
+    // Budget-Werte aus LocalStorage laden
+    ['car', 'flights', 'stay', 'food', 'tours'].forEach(id => {
+        const savedVal = localStorage.getItem('island-budget-' + id);
+        if (savedVal !== null) {
+            document.getElementById(id).value = savedVal;
+        }
+    });
+
+    initCheckboxes();
+    calcBudget();
+    
+    // Wir zeigen einen kleinen Link an, falls man doch mal aus der Cloud laden will
+    document.getElementById('syncStatus').innerHTML = 
+        '<a href="#" onclick="loadFromCloudManual()" style="color:var(--viking-gold); text-decoration:none;">🔄 Daten von Partnerin abrufen?</a>';
+};
 </script>
 
 </body>
